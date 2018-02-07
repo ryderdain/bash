@@ -12,11 +12,11 @@ E='[0m';
 ## Usage
 DESCRIPTION="
 Pretty-prints useful info about the SSL certificate. Can fetch via DNS
-entry or checks a file.
+entry or checks a file. Can pass a CA root file as a second argument.
 "
 USAGE="
 Usage:
-    $0 <fqdn|file>
+    $0 <fqdn|file> [ <cafile> ]
 
 "
 
@@ -125,6 +125,12 @@ print_general() {
 main() {
     if [ -z "${1}" ]; then printf "%s%s" "$DESCRIPTION" "$USAGE"; exit 0; fi
 
+    ## Accept an alternative CA file
+    if [ -n "${2}" ] && [ -f "${2}" ] && (grep -q "BEGIN CERTIFICATE" "$2")
+    then
+        CA_ROOTS="${2}" ; export CA_ROOTS
+    fi
+
     if [ -f "${1}" ] && (grep -q "BEGIN CERTIFICATE" "$1")
 
     ## First Option: Check by File
@@ -159,7 +165,7 @@ main() {
         printf "\n" | openssl s_client -showcerts -servername "$FQDN" -connect $FQDN_IP:443 2>/dev/null > $CERT_CHAIN
     fi
 
-    printf "${G}VERIFYING ${Bold}${C}${FQDN}${E} ${G}AGAINST $CA_ROOTS via "
+    printf "${G}VERIFYING ${Bold}${C}${FQDN}${E} ${G}AGAINST $CA_ROOTS\n"
     verify_out="`openssl verify -verbose -CAfile $CA_ROOTS -untrusted $CERT_CHAIN $CERT_CHAIN`"
     if [ $? -gt 0 ]
     then

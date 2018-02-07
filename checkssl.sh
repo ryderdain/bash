@@ -71,7 +71,7 @@ print_expiry() {
     sslEndDate="`openssl x509 -noout -enddate -in "${CERT}" | sed -e 's/\(.*\)=\(.*\)/\2/'`"
     if ! (check_expiry ${CERT} 0)
     then 
-        printf "EXPIRED: ${Bold}${R}$sslEndDate${E}"
+        printf "EXPIRED: ${Bold}${R}$sslEndDate${E}\n"
     elif ! (check_expiry ${CERT} 30)
     then
         printf "Expires Soon: ${Bold}${Y}$sslEndDate${E}\n"
@@ -82,7 +82,7 @@ print_expiry() {
 print_altnames() {
     ALTNAMES="`openssl x509 -noout -text -in \"${1}\" | grep -oE 'DNS:.*[^,$ ]' | sed -e 's/,//g;s/DNS:\([^ $]*\)/\1 /g'`"
     count=0
-    printf "___ Subject Alternative Names ___\n"
+    printf "\n___ Subject Alternative Names ___\n"
     for an in $ALTNAMES
     do
         printf "%02d: %s\n" $count $an
@@ -92,8 +92,7 @@ print_altnames() {
 print_subject() {
     cyan="$C"
     eval "`openssl x509 -noout -subject -in \"${1}\" | sed -e 's/[^/]*\/\([^=]*\)=\([^/]*\)/\1=\"\2\"; /g'`"
-    printf "
-___ Subject ___
+    printf "\n___ Subject ___
 Country: $C
 Location: $L
 State: $ST

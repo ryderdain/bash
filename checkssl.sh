@@ -3,18 +3,18 @@
 
 ## Pretty Colors!
 #   NOTE: 'E' def left at end for when $(cat) used on terminal
-RED='[31m'; GREEN='[32m'; YELLOW='[33m'; BLUE='[34m'; MAGENTA='[35m'; CYAN='[36m';
-BOLDFACE='[1m';
-UNDERLINE='[4m';
-ENDFMT='[0m';
+red='[31m'; green='[32m'; yellow='[33m'; blue='[34m'; magenta='[35m'; cyan='[36m';
+bold='[1m';
+underline='[4m';
+endfmt='[0m';
 
 
 ## Usage
-DESCRIPTION="
+description="
 Pretty-prints useful info about the SSL certificate. Can fetch via DNS
 entry or checks a file. Can pass a CA root file as a second argument.
 "
-USAGE="
+usage="
 Usage:
     $0 <fqdn|file> [ <cafile> ]
 
@@ -23,18 +23,18 @@ Usage:
 ## Compatibility
 if [ "$(uname)" = "FreeBSD" ]
 then
-    CA_ROOTS=/etc/ssl/cert.pem
+    ca_roots=/etc/ssl/cert.pem
     STR2DATE="date -jf "
     MD5=/sbin/md5
 elif [ "$(uname)" = "Darwin" ]
 then
     ## WARNING: older Bourne Shell is nonexistent on Darwin
-    CA_ROOTS=/etc/ssl/cert.pem
+    ca_roots=/etc/ssl/cert.pem
     STR2DATE="date -jf "
     MD5=/sbin/md5
 elif [ "$(uname)" = "Linux" ]
 then
-    CA_ROOTS=/etc/ssl/cert.pem
+    ca_roots=/etc/ssl/cert.pem
     STR2DATE="date -d "
     MD5=/usr/bin/md5sum
 fi
@@ -50,8 +50,8 @@ getsuf() {
 }
 error() {
     ret_code=${1}; shift
-    printf "%s [error]: %s" "$(date)" "${@}"
-    printf "%s" "$USAGE"
+    printf '%s [error]: %s' "$(date)" "${@}"
+    printf '%s' "$usage"
     exit ${ret_code}
 }
 
@@ -64,125 +64,130 @@ check_expiry() {
 check_start() {
     sslStartDate="$(openssl x509 -noout -startdate -in ${1})"
     sslStart="$($STR2DATE 'notBefore=%b %d %H:%M:%S %Y %Z' "${sslStartDate}" +%s)"
-    [ "$sslStart" -lt "$(date -v +${2:-0}d +%s)" ]; return ${?}
+    [ "$sslStart" -lt "$(date -v +${2:-0}d +%s)" ]; return $?
+}
+pluck() {
+    delimiter="${1}"; shift
+    subject_header="${1}"; shift
+    subject_line="$(printf '%s' "$1" | sed -e 's/^subject= *)//')"; shift
+    printf '%s\n' "$(printf '%s\n' "${subject_line}" | grep -oE "(${delimiter}|^)${subject_header} ?= ?([^${delimiter}]+)" | cut -d'=' -f2)"
 }
 
 ## Printers
 print_expiry() {
-    CERT=${1}
-    sslEndDate="$(openssl x509 -noout -enddate -in "${CERT}" | sed -e 's/\(.*\)=\(.*\)/\2/')"
-    if ! (check_expiry ${CERT} 0)
+    cert_chain=${1}
+    sslEndDate="$(openssl x509 -noout -enddate -in "${cert_chain}" | sed -e 's/\(.*\)=\(.*\)/\2/')"
+    if ! (check_expiry "${cert_chain}" 0)
     then 
-        printf 'EXPIRED: %s\n' "${BOLDFACE}${RED}$sslEndDate${ENDFMT}"
-    elif ! (check_expiry ${CERT} 30)
+        printf 'EXPIRED: %s\n' "${bold}${red}$sslEndDate${endfmt}"
+    elif ! (check_expiry "${cert_chain}" 30)
     then
-        printf 'Expires Soon: %s\n' "${BOLDFACE}${YELLOW}$sslEndDate${ENDFMT}"
+        printf 'Expires Soon: %s\n' "${bold}${yellow}$sslEndDate${endfmt}"
     else
-        printf 'Expires: %s\n' "${GREEN}$sslEndDate${ENDFMT}"
+        printf 'Expires: %s\n' "${green}$sslEndDate${endfmt}"
     fi
 }
 fmt_altnames() {
-    count=0
-    for an in "$@"
+    counter=0
+    # Tearing my hair out here because "${@}" treats passed args as a single string.
+    for an in ${@}
     do
         printf '%02d: %s\n' "$count" "$an"
-        count="$((count+1))"
+        counter="$((counter+1))"
     done
 }
 print_altnames() {
     printf '\n%s\n' "___ Subject Alternative Names ___"
-    fmt_altnames "$(openssl x509 -noout -text -in ${1} | grep -oE 'DNS:.*[^,$ ]' | sed -e 's/,//g;s/DNS:\([^ $]*\)/\1 /g')"
+    altnames="$(openssl x509 -noout -text -in "${1}" | grep -o 'DNS:.*' | sed -e 's/,//g;s/DNS:\([^ $]*\)/\1/g')"
+    fmt_altnames "${altnames}"
 }
 print_subject() {
-    eval "$(openssl x509 -noout -subject -in ${1} | sed -e 's/[^/]*\/\([^=]*\)=\([^/]*\)/\1=\"\2\"; /g')"
+    # Parse the subject in RFC's comma-separated format 'CN=example.com,OU=...'
+    # see RFC2253 for more info on string returned
+    subject_line="$(openssl x509 -noout -nameopt RFC2253 -subject -in ${1} | cut -d' ' -f2-)"  
     printf '\n%s\n' "___ Subject ___"
-    printf 'Country: %s\n' "$C"
-    printf 'Location: %s\n' "$L"
-    printf 'State: %s\n' "$ST"
-    printf 'Organization: %s\n' "$O"
-    printf 'Organizational Unit: %s\n' "$OU"
-    printf 'Common Name: %s\n' "${BOLDFACE}${MAGENTA}$CN${ENDFMT}"
+    printf 'Country: %s\n' "$(pluck , C "$subject_line")"
+    printf 'Location: %s\n' "$(pluck , L "$subject_line")"
+    printf 'State: %s\n' "$(pluck , ST "$subject_line")"
+    printf 'Organization: %s\n' "$(pluck , O "$subject_line")"
+    printf 'Organizational Unit: %s\n' "$(pluck , OU "$subject_line")"
+    printf 'Common Name: %s\n' "${bold}${magenta}$(pluck , CN "$subject_line")${endfmt}"
 }
 print_start() {
-    CERT=${1}
-    sslStartDate="$(openssl x509 -noout -startdate -in "${CERT}" | sed -e 's/\(.*\)=\(.*\)/\2/')"
-    if (check_start ${CERT} 0)
+    cert_chain=${1}
+    sslStartDate="$(openssl x509 -noout -startdate -in "${cert_chain}" | sed -e 's/\(.*\)=\(.*\)/\2/')"
+    if (check_start "${cert_chain}" 0)
     then 
-        printf "Ready Since: %s\n" "${GREEN}$sslStartDate${ENDFMT}"
-    elif (check_start ${CERT} 7)
+        printf 'Ready Since: %s\n' "${green}$sslStartDate${endfmt}"
+    elif (check_start "${cert_chain}" 7)
     then
-        printf "Ready Soon: %s\n" "${YELLOW}$sslStartDate${ENDFMT}"
+        printf 'Ready Soon: %s\n' "${yellow}$sslStartDate${endfmt}"
     else
-        printf "NOT READY: %s\n" "${BOLDFACE}${RED}$sslStartDate${ENDFMT}"
+        printf 'NOT READY: %s\n' "${bold}${red}$sslStartDate${endfmt}"
     fi
 }
 print_general() {
-    CERT=${1}
-    printf "\n${BOLDFACE}${GREEN}___ CORE INFO ON ${CYAN}${FQDN}${GREEN} ___${ENDFMT}\n"
-    openssl x509 -noout -subject -issuer -dates -in "${CERT}" | sed -e "s/\(.*\)=\(.*\)/\1=${BOLDFACE}${YELLOW}\2${ENDFMT}/"
+    cert_chain=${1}
+    printf '\n%s\n' "${bold}${green}___ CORE INFO ON ${cyan}${fqdn}${green} ___${endfmt}"
+    openssl x509 -noout -subject -issuer -dates -in "${cert_chain}" | sed -e "s/\(.*\)=\(.*\)/\1=${bold}${yellow}\2${endfmt}/"
 }
 
 ## Main!
 main() {
-
-    echo "$1"
-    echo "$2"
-    if [ -z "${1}" ]; then printf '%s%s' "$DESCRIPTION" "$USAGE"; exit 0; fi
+    if [ -z "${1}" ]; then printf '%s%s' "$description" "$usage"; exit 0; fi
 
     ## Accept an alternative CA file
     if [ -n "${2}" ] && [ -f "${2}" ] && (grep -q "BEGIN CERTIFICATE" "${2}")
     then
-        CA_ROOTS="${2}" ; export CA_ROOTS
+        ca_roots="${2}" ; export ca_roots
     fi
 
     if [ -f "${1}" ] && (grep -q "BEGIN CERTIFICATE" "$1")
 
     ## First Option: Check by File
     then
-        CERT_CHAIN="${1}" ; shift
-        printf "${GREEN}EXTRACTING CN FROM ${CYAN}${CERT_CHAIN}${GREEN} ...${ENDFMT} "
-        eval "$(openssl x509 -noout -subject -in "${CERT_CHAIN}" | sed -e 's/.*CN *=\([^/]*\)/CN="\1"; /g')"
-        FQDN="$CN"
-        FQDN_IP="$(getip ${FQDN})"
-        if [ $? -gt 0 ]
+        cert_chain="${1}" ; shift
+        printf '%s' "${green}EXTRACTING CN FROM ${cyan}${cert_chain}${green} ...${endfmt} "
+        common_name="$(openssl x509 -noout -subject -in "${cert_chain}" | sed -e 's/.*CN *=\([^/]*\)/\1/g')"
+        fqdn="$common_name"
+        if fqdn_ip="$(getip "${fqdn}")"
         then
-            printf '%s\n' "${RED}NO IP FOR CN \"${CYAN}${BOLDFACE}${FQDN}${ENDFMT}\"" 
+            printf '%s\n' "\"${cyan}${bold}${fqdn}${endfmt}\" ${green}LIVES AT ${cyan}${fqdn_ip}${endfmt}" 
         else
-            printf '%s\n' "\"${CYAN}${BOLDFACE}${FQDN}${ENDFMT}\" ${GREEN}LIVES AT ${CYAN}${FQDN_IP}${ENDFMT}" 
+            printf '%s\n' "${red}NO IP FOR CN \"${cyan}${bold}${fqdn}${endfmt}\"" 
         fi
 
-    ## Second Option: Check by FQDN
+    ## Second Option: Check by fqdn
     else
-        FQDN="${1}"; shift
-        FQDN_IP="$(getip "${FQDN}")"
-        if [ -z "$FQDN_IP" ]
+        fqdn="${1}"; shift
+        fqdn_ip="$(getip "${fqdn}")"
+        if [ -z "$fqdn_ip" ]
         then
-            error 1 "Found no IP for \"$FQDN\""
+            error 1 "Found no IP for \"$fqdn\""
         fi
         while
-            CERT_CHAIN=/tmp/${FQDN}_sslchain-$(getsuf).txt
-            [ -f "$CERT_CHAIN" ]
+            cert_chain=/tmp/${fqdn}_sslchain-$(getsuf).txt
+            [ -f "$cert_chain" ]
         do continue ; done
-        touch $CERT_CHAIN
+        touch "$cert_chain"
 
-        printf '%s\n' "${GREEN}CONNECTING TO ${CYAN}${FQDN_IP}${GREEN} TO RETRIEVE CERT FOR \"${BOLDFACE}${CYAN}${FQDN}${GREEN}\"...${ENDFMT}"
-        printf '%s\n' "" | openssl s_client -showcerts -servername "$FQDN" -connect $FQDN_IP:443 2>/dev/null > $CERT_CHAIN
+        printf '%s\n' "${green}CONNECTING TO ${cyan}${fqdn_ip}${green} TO RETRIEVE CERTIFICATE FOR \"${bold}${cyan}${fqdn}${green}\"...${endfmt}"
+        printf '%s\n' "" | openssl s_client -showcerts -servername "$fqdn" -connect $fqdn_ip:443 2>/dev/null > $cert_chain
     fi
 
-    printf '%s\n' "${GREEN}VERIFYING ${BOLDFACE}${CYAN}${FQDN}${ENDFMT} ${GREEN}AGAINST ${CA_ROOTS}"
-    verify_out="$(openssl verify -verbose -CAfile "${CA_ROOTS}" -untrusted "${CERT_CHAIN}" "${CERT_CHAIN}")"
-    if [ $? -gt 0 ]
+    printf '%s\n' "${green}VERIFYING ${bold}${cyan}${fqdn}${endfmt} ${green}AGAINST ${ca_roots}"
+    if verify_out="$(openssl verify -verbose -CAfile "${ca_roots}" -untrusted "${cert_chain}" "${cert_chain}")"
     then
-        printf '%s\n' "${RED}$verify_out${ENDFMT}"
+        printf '%s\n' "${bold}${green}$verify_out${endfmt}"
     else
-        printf '%s\n' "${BOLDFACE}${GREEN}$verify_out${ENDFMT}"
+        printf '%s\n' "${red}$verify_out${endfmt}"
     fi
 
-    print_general ${CERT_CHAIN}
-    print_subject ${CERT_CHAIN}
-    print_altnames ${CERT_CHAIN}
-    print_start ${CERT_CHAIN}
-    print_expiry ${CERT_CHAIN}
+    print_general "${cert_chain}"
+    print_subject "${cert_chain}"
+    print_altnames "${cert_chain}"
+    print_start "${cert_chain}"
+    print_expiry "${cert_chain}"
 
     exit 0
 }

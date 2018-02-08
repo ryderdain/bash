@@ -3,9 +3,14 @@
 
 ## Pretty Colors!
 #   NOTE: 'E' def left at end for when $(cat) used on terminal
-red='[31m'; green='[32m'; yellow='[33m'; blue='[34m'; magenta='[35m'; cyan='[36m';
+red='[31m';
+green='[32m';
+yellow='[33m';
+#blue='[34m';
+magenta='[35m';
+cyan='[36m';
 bold='[1m';
-underline='[4m';
+#underline='[4m';
 endfmt='[0m';
 
 
@@ -26,17 +31,20 @@ then
     ca_roots=/etc/ssl/cert.pem
     STR2DATE="date -jf "
     MD5=/sbin/md5
+    SED='sed -E -e'
 elif [ "$(uname)" = "Darwin" ]
 then
     ## WARNING: older Bourne Shell is nonexistent on Darwin
     ca_roots=/etc/ssl/cert.pem
     STR2DATE="date -jf "
     MD5=/sbin/md5
+    SED='sed -E -e'
 elif [ "$(uname)" = "Linux" ]
 then
     ca_roots=/etc/ssl/cert.pem
     STR2DATE="date -d "
     MD5=/usr/bin/md5sum
+    SED='sed -r -e'
 fi
 
 
@@ -52,19 +60,19 @@ error() {
     ret_code=${1}; shift
     printf '%s [error]: %s' "$(date)" "${@}"
     printf '%s' "$usage"
-    exit ${ret_code}
+    exit "${ret_code}"
 }
 
 ## Checks
 check_expiry() {
-    sslEndDate="$(openssl x509 -noout -enddate -in ${1})"
+    sslEndDate="$(openssl x509 -noout -enddate -in "${1}")"
     sslEnd="$($STR2DATE 'notAfter=%b %d %H:%M:%S %Y %Z' "${sslEndDate}" +%s)"
-    [ "$sslEnd" -gt "$(date -v +${2:-0}d +%s)" ]; return $?
+    [ "$sslEnd" -gt "$(date -v +"${2:-0}"d +%s)" ]; return "$?"
 }
 check_start() {
-    sslStartDate="$(openssl x509 -noout -startdate -in ${1})"
+    sslStartDate="$(openssl x509 -noout -startdate -in "${1}")"
     sslStart="$($STR2DATE 'notBefore=%b %d %H:%M:%S %Y %Z' "${sslStartDate}" +%s)"
-    [ "$sslStart" -lt "$(date -v +${2:-0}d +%s)" ]; return $?
+    [ "$sslStart" -lt "$(date -v +"${2:-0}"d +%s)" ]; return "$?"
 }
 pluck() {
     delimiter="${1}"; shift
@@ -76,7 +84,7 @@ pluck() {
 ## Printers
 print_expiry() {
     cert_chain=${1}
-    sslEndDate="$(openssl x509 -noout -enddate -in "${cert_chain}" | sed -e 's/\(.*\)=\(.*\)/\2/')"
+    sslEndDate="$(openssl x509 -noout -enddate -in "${cert_chain}" | $SED 's/(.*)=(.*)/\2/')"
     if ! (check_expiry "${cert_chain}" 0)
     then 
         printf 'EXPIRED: %s\n' "${bold}${red}$sslEndDate${endfmt}"
@@ -88,23 +96,23 @@ print_expiry() {
     fi
 }
 fmt_altnames() {
-    counter=0
-    # Tearing my hair out here because "${@}" treats passed args as a single string.
-    for an in ${@}
+    count=0
+    for altname in "$@"
     do
-        printf '%02d: %s\n' "$count" "$an"
-        counter="$((counter+1))"
+        printf '%02d: %s\n' "$count" "$altname"
+        count="$((count+1))"
     done
 }
 print_altnames() {
     printf '\n%s\n' "___ Subject Alternative Names ___"
-    altnames="$(openssl x509 -noout -text -in "${1}" | grep -o 'DNS:.*' | sed -e 's/,//g;s/DNS:\([^ $]*\)/\1/g')"
-    fmt_altnames "${altnames}"
+    altnames="$(openssl x509 -noout -text -in "${1}" | grep -oE 'DNS:([^, $]+)')"
+    common_name_list="$(printf '%s' "$altnames" | $SED 's/DNS:([^, $]+)/\1/g')"
+    fmt_altnames "$common_name_list"
 }
 print_subject() {
     # Parse the subject in RFC's comma-separated format 'CN=example.com,OU=...'
     # see RFC2253 for more info on string returned
-    subject_line="$(openssl x509 -noout -nameopt RFC2253 -subject -in ${1} | cut -d' ' -f2-)"  
+    subject_line="$(openssl x509 -noout -nameopt RFC2253 -subject -in "${1}" | cut -d' ' -f2-)"
     printf '\n%s\n' "___ Subject ___"
     printf 'Country: %s\n' "$(pluck , C "$subject_line")"
     printf 'Location: %s\n' "$(pluck , L "$subject_line")"
@@ -115,7 +123,7 @@ print_subject() {
 }
 print_start() {
     cert_chain=${1}
-    sslStartDate="$(openssl x509 -noout -startdate -in "${cert_chain}" | sed -e 's/\(.*\)=\(.*\)/\2/')"
+    sslStartDate="$(openssl x509 -noout -startdate -in "${cert_chain}" | $SED 's/(.*)=(.*)/\2/')"
     if (check_start "${cert_chain}" 0)
     then 
         printf 'Ready Since: %s\n' "${green}$sslStartDate${endfmt}"
@@ -129,7 +137,8 @@ print_start() {
 print_general() {
     cert_chain=${1}
     printf '\n%s\n' "${bold}${green}___ CORE INFO ON ${cyan}${fqdn}${green} ___${endfmt}"
-    openssl x509 -noout -subject -issuer -dates -in "${cert_chain}" | sed -e "s/\(.*\)=\(.*\)/\1=${bold}${yellow}\2${endfmt}/"
+    gen_info="$(openssl x509 -noout -subject -issuer -dates -in "${cert_chain}" | $SED 's/(.*)=(.*)/\1=\2/')"
+    printf '%s\n' "$gen_info"
 }
 
 ## Main!
@@ -148,7 +157,8 @@ main() {
     then
         cert_chain="${1}" ; shift
         printf '%s' "${green}EXTRACTING CN FROM ${cyan}${cert_chain}${green} ...${endfmt} "
-        common_name="$(openssl x509 -noout -subject -in "${cert_chain}" | sed -e 's/.*CN *=\([^/]*\)/\1/g')"
+        subject_line="$(openssl x509 -noout -nameopt RFC2253 -subject -in "${cert_chain}")"
+        common_name="$(pluck , CN "$subject_line")"
         fqdn="$common_name"
         if fqdn_ip="$(getip "${fqdn}")"
         then
@@ -172,7 +182,7 @@ main() {
         touch "$cert_chain"
 
         printf '%s\n' "${green}CONNECTING TO ${cyan}${fqdn_ip}${green} TO RETRIEVE CERTIFICATE FOR \"${bold}${cyan}${fqdn}${green}\"...${endfmt}"
-        printf '%s\n' "" | openssl s_client -showcerts -servername "$fqdn" -connect $fqdn_ip:443 2>/dev/null > $cert_chain
+        printf '%s\n' "" | openssl s_client -showcerts -servername "$fqdn" -connect "$fqdn_ip":443 2>/dev/null > "$cert_chain"
     fi
 
     printf '%s\n' "${green}VERIFYING ${bold}${cyan}${fqdn}${endfmt} ${green}AGAINST ${ca_roots}"

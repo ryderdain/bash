@@ -56,6 +56,14 @@ getip() {
 getsuf() {
     head /dev/random | $MD5 | cut -c1-8
 }
+list_elements() {
+    count=0
+    printf '%s\n' "${@}" | tr -s '\008\010\011\012\013\014\015\040' '\012' | while read -r element
+    do
+        printf '%02d: %s\n' "$count" "$element"
+        count="$((count+1))"
+    done
+}
 error() {
     ret_code=${1}; shift
     printf '%s [error]: %s' "$(date)" "${@}"
@@ -77,8 +85,8 @@ check_start() {
 pluck() {
     delimiter="${1}"; shift
     subject_header="${1}"; shift
-    subject_line="$(printf '%s' "$1" | sed -e 's/^subject= *)//')"; shift
-    printf '%s\n' "$(printf '%s\n' "${subject_line}" | grep -oE "(${delimiter}|^)${subject_header} ?= ?([^${delimiter}]+)" | cut -d'=' -f2)"
+    subject_line="$(printf '%s' "$1" | $SED 's/^subject= *//')"; shift
+    printf '%s\n' "$(printf '%s\n' "${subject_line}" | grep -oE "(${delimiter}|^)${subject_header} *= *([^${delimiter}]+)" | cut -d'=' -f2)"
 }
 
 ## Printers
@@ -95,19 +103,11 @@ print_expiry() {
         printf 'Expires: %s\n' "${green}$sslEndDate${endfmt}"
     fi
 }
-fmt_altnames() {
-    count=0
-    for altname in "$@"
-    do
-        printf '%02d: %s\n' "$count" "$altname"
-        count="$((count+1))"
-    done
-}
 print_altnames() {
     printf '\n%s\n' "___ Subject Alternative Names ___"
     altnames="$(openssl x509 -noout -text -in "${1}" | grep -oE 'DNS:([^, $]+)')"
     common_name_list="$(printf '%s' "$altnames" | $SED 's/DNS:([^, $]+)/\1/g')"
-    fmt_altnames "$common_name_list"
+    list_elements "$common_name_list"
 }
 print_subject() {
     # Parse the subject in RFC's comma-separated format 'CN=example.com,OU=...'

@@ -26,35 +26,38 @@ Usage:
 "
 
 ## Compatibility
-if [ "$(uname)" = "FreeBSD" ]
-then
+system="$(uname)"
+case "$system" in
+FreeBSD|Darwin)
     ca_roots=/etc/ssl/cert.pem
-    STR2DATE="date -jf "
-    MD5=/sbin/md5
-    SED='sed -E -e'
-elif [ "$(uname)" = "Darwin" ]
-then
-    ## WARNING: older Bourne Shell is nonexistent on Darwin
-    ca_roots=/etc/ssl/cert.pem
-    STR2DATE="date -jf "
-    MD5=/sbin/md5
-    SED='sed -E -e'
-elif [ "$(uname)" = "Linux" ]
-then
-    ca_roots=/etc/ssl/cert.pem
-    STR2DATE="date -d "
-    MD5=/usr/bin/md5sum
-    SED='sed -r -e'
-fi
+    md5_cmd='/sbin/md5 '
+    sed_cmd='sed -E -e'
+    ssl_str2date() { target="$(printf '%s\n' "${1}" | cut -d'=' -f2)"; date -jf "%b %d %H:%M:%S %Y %Z" "$target" '+%Y%m%d'; }
+    reldate() { n="${1:-0}" ; [ "$n" -ge 0 ] && n="+$1" ; date -v "${n}d" "+%Y%m%d"; }
+    ;;
+Linux|*)
+    ca_roots=/etc/ssl/certs/certSIGN_ROOT_CA.pem
+    md5_cmd='/usr/bin/md5sum -b '
+    sed_cmd='sed -r -e'
+    ssl_str2date() { target="$(printf '%s\n' "${1}" | cut -d'=' -f2)"; date --date="$target" '+%Y%m%d'; }
+    reldate() { n="${1:-0}" ; [ "$n" -ge 0 ] && n="+$1" ; date --date="${n} days" '+%Y%m%d'; }
+    ;;
+esac
 
 
 ## Utilities
+error() {
+    ret_code=${1}; shift
+    printf '%s [error]: %s' "$(date)" "${@}"
+    printf '%s' "$usage"
+    exit "${ret_code}"
+}
 getip() {
     host -t A -4 "${1}" | grep -m1 -oE '([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'
     return $?
 } 
 getsuf() {
-    head /dev/random | $MD5 | cut -c1-8
+    dd if=/dev/random bs=128 count=1 2>/dev/null | $md5_cmd | cut -c1-8
 }
 list_elements() {
     count=0
@@ -64,35 +67,31 @@ list_elements() {
         count="$((count+1))"
     done
 }
-error() {
-    ret_code=${1}; shift
-    printf '%s [error]: %s' "$(date)" "${@}"
-    printf '%s' "$usage"
-    exit "${ret_code}"
-}
 
 ## Checks
 check_expiry() {
     sslEndDate="$(openssl x509 -noout -enddate -in "${1}")"
-    sslEnd="$($STR2DATE 'notAfter=%b %d %H:%M:%S %Y %Z' "${sslEndDate}" +%s)"
-    [ "$sslEnd" -gt "$(date -v +"${2:-0}"d +%s)" ]; return "$?"
+    sslEnd="$(ssl_str2date "${sslEndDate}")"
+    [ "$sslEnd" -gt "$(reldate "${2:-0}")" ]; return "$?"
 }
 check_start() {
     sslStartDate="$(openssl x509 -noout -startdate -in "${1}")"
-    sslStart="$($STR2DATE 'notBefore=%b %d %H:%M:%S %Y %Z' "${sslStartDate}" +%s)"
-    [ "$sslStart" -lt "$(date -v +"${2:-0}"d +%s)" ]; return "$?"
+    sslStart="$(ssl_str2date "${sslStartDate}")"
+    [ "$sslStart" -lt "$(reldate "${2:-0}")" ]; return "$?"
 }
 pluck() {
     delimiter="${1}"; shift
     subject_header="${1}"; shift
-    subject_line="$(printf '%s' "$1" | $SED 's/^subject= *//')"; shift
-    printf '%s\n' "$(printf '%s\n' "${subject_line}" | grep -oE "(${delimiter}|^)${subject_header} *= *([^${delimiter}]+)" | cut -d'=' -f2)"
+    subject_line="$(printf '%s' "$1" | $sed_cmd 's/^subject= *//')"; shift
+    printf '%s\n' "$(printf '%s\n' "${subject_line}" |\
+         grep -oE "(${delimiter}|^)${subject_header} *= *([^${delimiter}]+)" |\
+         cut -d'=' -f2)"
 }
 
 ## Printers
 print_expiry() {
     cert_chain=${1}
-    sslEndDate="$(openssl x509 -noout -enddate -in "${cert_chain}" | $SED 's/(.*)=(.*)/\2/')"
+    sslEndDate="$(openssl x509 -noout -enddate -in "${cert_chain}" | awk '{ split($0,a,"="); print a[2];}')"
     if ! (check_expiry "${cert_chain}" 0)
     then 
         printf 'EXPIRED: %s\n' "${bold}${red}$sslEndDate${endfmt}"
@@ -106,7 +105,7 @@ print_expiry() {
 print_altnames() {
     printf '\n%s\n' "___ Subject Alternative Names ___"
     altnames="$(openssl x509 -noout -text -in "${1}" | grep -oE 'DNS:([^, $]+)')"
-    common_name_list="$(printf '%s' "$altnames" | $SED 's/DNS:([^, $]+)/\1/g')"
+    common_name_list="$(printf '%s' "$altnames" | $sed_cmd 's/DNS:([^, $]+)/\1/g')"
     list_elements "$common_name_list"
 }
 print_subject() {
@@ -123,7 +122,7 @@ print_subject() {
 }
 print_start() {
     cert_chain=${1}
-    sslStartDate="$(openssl x509 -noout -startdate -in "${cert_chain}" | $SED 's/(.*)=(.*)/\2/')"
+    sslStartDate="$(openssl x509 -noout -startdate -in "${cert_chain}" | awk '{ split($0,a,"="); print a[2];}')"
     if (check_start "${cert_chain}" 0)
     then 
         printf 'Ready Since: %s\n' "${green}$sslStartDate${endfmt}"
@@ -137,7 +136,7 @@ print_start() {
 print_general() {
     cert_chain=${1}
     printf '\n%s\n' "${bold}${green}___ CORE INFO ON ${cyan}${fqdn}${green} ___${endfmt}"
-    gen_info="$(openssl x509 -noout -subject -issuer -dates -in "${cert_chain}" | $SED 's/(.*)=(.*)/\1=\2/')"
+    gen_info="$(openssl x509 -noout -subject -issuer -dates -in "${cert_chain}" | $sed_cmd 's/(.*)=(.*)/\1=\2/')"
     printf '%s\n' "$gen_info"
 }
 

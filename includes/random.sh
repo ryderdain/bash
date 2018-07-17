@@ -11,7 +11,7 @@ random() {
     randbytes="0x$(dd if=/dev/urandom bs=7 count=1 2>/dev/null | xxd -ps)"
     decimal="$(($(printf "%#d" "$randbytes") % $modus))" # reduce 9's for a
                                                          # shorter decimal.
-    printf "%d" "$decimal"
+    printf "%0${limit}d" "$decimal"
     return "$decimal"
 }
 
@@ -20,5 +20,5 @@ $(return >/dev/null 2>&1)
 if [ "$?" -ne "0" ]
 then
     retval="$(random ${@})"
-    printf "%d\n" "$retval"
+    printf "%s\n" "$retval"
 fi

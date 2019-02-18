@@ -9,7 +9,7 @@ systems. Attempts at cross-compatibility have been made where possible.
 Contacts, fetches, and pretty-prints the most useful information about an SSL key. 
 
 ### Usage
-    ./checkssl.sh <fqdn>
+    ./checkssl.sh <fqdn | certfile> [<CAs file>]
 
 ### Requirements
 

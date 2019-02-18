@@ -6,7 +6,7 @@ systems. Attempts at cross-compatibility have been made where possible.
 
 ## checkssl.sh
 
-Contacts, fetches, and pretty-prints the most useful information about an SSL key. 
+Contacts, fetches, and pretty-prints the most useful information about an SSL key. Attempts to verify the certificate against default root CAs, but can be passed an alternative CAs file to use instead.
 
 ### Usage
     ./checkssl.sh <fqdn | certfile> [<CAs file>]
@@ -16,6 +16,7 @@ Contacts, fetches, and pretty-prints the most useful information about an SSL ke
 - openssl
 - ca_root_nss
 - a bourne shell
+- internet, if fetching with fqdn
 
 ### Compatibiity Notes
 

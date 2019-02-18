@@ -6,7 +6,7 @@ systems. Attempts at cross-compatibility have been made where possible.
 
 ## checkssl.sh
 
-Contacts, fetches, and pretty-printx the most useful information about an SSL key. 
+Contacts, fetches, and pretty-prints the most useful information about an SSL key. 
 
 ### Usage
     ./checkssl.sh <fqdn>
@@ -19,7 +19,7 @@ Contacts, fetches, and pretty-printx the most useful information about an SSL ke
 
 ### Compatibiity Notes
 
-On Linux and other BSD's, `date` make require slightly different flags than on
+On Linux and other BSD's, `date` may require slightly different flags than on
 FreeBSD. Use whatever flags you need to execute `strptime()` against a string.
 The `-v` flag should work on all platforms as used here, but YMMV.
 

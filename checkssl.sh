@@ -148,6 +148,13 @@ main() {
     if [ -n "${2}" ] && [ -f "${2}" ] && (grep -q "BEGIN CERTIFICATE" "${2}")
     then
         ca_roots="${2}" ; export ca_roots
+        ca_flag="CAfile"; export ca_flag
+    elif [ -n "${2}" ] && [ -d "${2}" ] && (grep -qr "BEGIN CERTIFICATE" "${2}")
+    then
+        ca_roots="${2}" ; export ca_roots
+        ca_flag="CApath"; export ca_flag
+    else
+        ca_flag="CAfile"; export ca_flag
     fi
 
     if [ -f "${1}" ] && (grep -q "BEGIN CERTIFICATE" "$1")
@@ -184,8 +191,8 @@ main() {
         printf '%s\n' "" | openssl s_client -showcerts -servername "$fqdn" -connect "$fqdn_ip":443 2>/dev/null > "$cert_chain"
     fi
 
-    printf '%s\n' "${green}VERIFYING ${bold}${cyan}${fqdn}${endfmt} ${green}AGAINST ${ca_roots}"
-    if verify_out="$(openssl verify -verbose -CAfile "${ca_roots}" -untrusted "${cert_chain}" "${cert_chain}")"
+    printf '%s\n' "${green}VERIFYING ${bold}${cyan}${fqdn}${endfmt} ${green}AGAINST ${ca_flag} ${ca_roots}"
+    if verify_out="$(openssl verify -verbose -"${ca_flag}" "${ca_roots}" -untrusted "${cert_chain}" "${cert_chain}")"
     then
         printf '%s\n' "${bold}${green}$verify_out${endfmt}"
     else

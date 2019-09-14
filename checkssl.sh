@@ -84,7 +84,7 @@ pluck() {
     subject_header="${1}"; shift
     subject_line="$(printf '%s' "$1" | $sed_cmd 's/^subject= *//')"; shift
     printf '%s\n' "$(printf '%s\n' "${subject_line}" |\
-         grep -oE "(${delimiter}|^)${subject_header} *= *([^${delimiter}]+)" |\
+         grep -oE "(${delimiter}|^) ?${subject_header} *= *([^${delimiter}]+)" |\
          cut -d'=' -f2)"
 }
 
@@ -111,7 +111,7 @@ print_altnames() {
 print_subject() {
     # Parse the subject in RFC's comma-separated format 'CN=example.com,OU=...'
     # see RFC2253 for more info on string returned
-    subject_line="$(openssl x509 -noout -nameopt RFC2253 -subject -in "${1}" | cut -d' ' -f2-)"
+    subject_line="$(openssl x509 -noout -nameopt RFC2253 -subject -in "${1}")"
     printf '\n%s\n' "___ Subject ___"
     printf 'Country: %s\n' "$(pluck , C "$subject_line")"
     printf 'Location: %s\n' "$(pluck , L "$subject_line")"

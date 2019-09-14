@@ -1,8 +1,6 @@
-# CLI Toys / clitoys
+# Forge
 
-To be read as "SEE-ELL-EYE-toys". Contains a personal collection of shell-based
-tools and tricks for running from the command line, mostly written for BSD unix
-systems. Attempts at cross-compatibility have been made where possible.
+Personal collection of shell-based tools and tricks for running from the command line, mostly written for BSD unix systems. Attempts at cross-compatibility have been made where possible.
 
 ## checkssl.sh
 

@@ -35,7 +35,16 @@ FreeBSD|Darwin)
     ssl_str2date() { target="$(printf '%s\n' "${1}" | cut -d'=' -f2)"; date -jf "%b %d %H:%M:%S %Y %Z" "$target" '+%Y%m%d'; }
     reldate() { n="${1:-0}" ; [ "$n" -ge 0 ] && n="+$1" ; date -v "${n}d" "+%Y%m%d"; }
     ;;
-Linux|*)
+Linux)
+    ca_roots=/etc/ssl/certs/certSIGN_ROOT_CA.pem
+    md5_cmd='/usr/bin/md5sum -b '
+    sed_cmd='sed -r -e'
+    ssl_str2date() { target="$(printf '%s\n' "${1}" | cut -d'=' -f2)"; date --date="$target" '+%Y%m%d'; }
+    reldate() { n="${1:-0}" ; [ "$n" -ge 0 ] && n="+$1" ; date --date="${n} days" '+%Y%m%d'; }
+    ;;
+*) 
+    printf "Unknown OS - attempting to set reasonable values\n"
+    # Take some measures to account for any unix variant
     ca_roots=/etc/ssl/certs/certSIGN_ROOT_CA.pem
     md5_cmd='/usr/bin/md5sum -b '
     sed_cmd='sed -r -e'

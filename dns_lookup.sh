@@ -39,6 +39,13 @@ fqdn='lookatmy.horse' # "." = \x2e # DNS query format doesn't use ".", instead d
 apex='lookatmy'
 tld='horse'
 
+# Arbitrary CLI input (subdomains will require a loop)
+fqdn="${1:-lookatmy.horse}"
+fqdn="${fqdn,,}" # lowercase
+fqdn_segments=( ${fqdn/./ } )
+tld="${fqdn_segments[@]: -1:1}"
+apex="${fqdn_segments[@]: -2:1}"
+
 # Domain segment encoding 
 apex_length="$(printf '\\x%02x' ${#apex})"
 tld_length="$(printf '\\x%02x' ${#tld})"
@@ -48,8 +55,29 @@ tld_as_hex=$(echo -n "$tld" | xxd -p | sed 's/\(..\)/\\x\1/g')
 
 ## WORKING / echo uses '-e', printf implictly applies encoding
 #echo -e "${txn_id}${query_head}${apex_length}${apex_as_hex}${tld_length}${tld_as_hex}${query_tail}" >&$fd
-printf "${txn_id}${query_head}${addtl_rr_count}${apex_length}${apex_as_hex}${tld_length}${tld_as_hex}${query_tail}${addtl_rr}" >&$fd
-xxd -p <&$fd
+printf '%b' "${txn_id}${query_head}${addtl_rr_count}${apex_length}${apex_as_hex}${tld_length}${tld_as_hex}${query_tail}${addtl_rr}" >&$fd
+swap_IFS="$IFS"
+IFS=""
+# read doesn't buffer the udp output. Would mapfile...?
+count=0
+coproc cat <&$fd 
+while read -r -t 1 -d '' -n 1 response
+do
+    if [[ -z $response  ]]
+    then
+        printf '%b' '\x00' | xxd
+        ((count++))
+        if [[ $count -gt 6 ]]
+        then
+            exec {fd}<&-
+            exit 0
+        fi
+    else
+        count=0
+    fi
+    printf '%b' "$response" | xxd
+done <&${COPROC[0]}
+IFS="$swap_IFS"
 
 ## Below does not execute; read appears to wait for termination of line, which isn't guaranteed.
 # echo "ENTERING WHILE LOOP"

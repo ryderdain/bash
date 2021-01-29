@@ -2,7 +2,11 @@
 # Adapted from:
 # https://www.quora.com/How-do-you-write-a-simple-shell-script-to-send-socket-messages-on-a-Unix-machine
 
-. includes/error.sh
+error() {
+    ret_code=${1}; shift
+    printf '%s [error]: %s' "$(date)" "${@}"
+    exit "${ret_code}"
+}
 
 fetch_normalized_response() {
     exec {fd}<>/dev/tcp/${1}/${2:-80}

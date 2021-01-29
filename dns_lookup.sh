@@ -22,10 +22,6 @@ split_fqdn() {
 #echo -e "${query_head}${query_tail}
 #xxd <&$fd # any encoder will do
 
-#exec {fd}<>/dev/udp/1.1.1.1/53
-exec {fd}<>/dev/udp/8.8.8.8/53
-echo "OPENED FD $fd"
-
 # Hexification
 txn_id='\xfa\xbe' # can be arbitrary, returned by resolver
 query_head='\x01\x02\x00\x01\x00\x00\x00\x00' # standard A IN query
@@ -35,16 +31,24 @@ addtl_rr='\x00\x00\x29\x10\x00\x00\x00\x00\x00\x00\x00' # for testing
 
 # Test Case
 # TODO: replace with python-like 'split(".")' to take arbitrary domain.
-fqdn='lookatmy.horse' # "." = \x2e # DNS query format doesn't use ".", instead declares length-of-string.
-apex='lookatmy'
-tld='horse'
-
+fqdn="${1:-lookatmy.horse}" # default lookup: "lookatmy.horse"
 # Arbitrary CLI input (subdomains will require a loop)
-fqdn="${1:-lookatmy.horse}"
-fqdn="${fqdn,,}" # lowercase
 fqdn_segments=( ${fqdn/./ } )
-tld="${fqdn_segments[@]: -1:1}"
-apex="${fqdn_segments[@]: -2:1}"
+
+if [[ "${fqdn: -1:1}" != '.' ]]
+then
+    tld="${fqdn##*.}"
+
+    apex="${fqdn%%.*}"
+    apex="${apex##*.}"
+else
+    tld="${fqdn##*.}"
+    tld="${tld##*.}"
+
+    apex="${fqdn%%.*}"
+    apex="${apex%%.*}"
+    apex="${apex##*.}"
+fi
 
 # Domain segment encoding 
 apex_length="$(printf '\\x%02x' ${#apex})"
@@ -52,6 +56,10 @@ tld_length="$(printf '\\x%02x' ${#tld})"
 
 apex_as_hex=$(echo -n "$apex" | xxd -p | sed 's/\(..\)/\\x\1/g')
 tld_as_hex=$(echo -n "$tld" | xxd -p | sed 's/\(..\)/\\x\1/g')
+
+#exec {fd}<>/dev/udp/1.1.1.1/53
+exec {fd}<>/dev/udp/8.8.8.8/53
+echo "OPENED FD $fd"
 
 ## WORKING / echo uses '-e', printf implictly applies encoding
 #echo -e "${txn_id}${query_head}${apex_length}${apex_as_hex}${tld_length}${tld_as_hex}${query_tail}" >&$fd
@@ -61,9 +69,9 @@ IFS=""
 # read doesn't buffer the udp output. Would mapfile...?
 count=0
 coproc cat <&$fd 
-while read -r -t 1 -d '' -n 1 response
+while read -r -t 1 -d '' -n 1 response_byte
 do
-    if [[ -z $response  ]]
+    if [[ -z $response_byte  ]]
     then
         printf '%b' '\x00' | xxd
         ((count++))
@@ -75,7 +83,7 @@ do
     else
         count=0
     fi
-    printf '%b' "$response" | xxd
+    printf '%b' "$response_byte" | xxd
 done <&${COPROC[0]}
 IFS="$swap_IFS"
 

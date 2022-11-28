@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-## Pretty Colors! For easy sourcing in other scripts.
+## Pretty Colors! For easy sourcing in other scripts. Works anywhere a TTY is emulated.
+
 # These are foreground colors only.
 black='\033[30m'; export black
 red='\033[31m'; export red
@@ -111,3 +112,39 @@ function print_color_references() {
     fi
 }
 
+function short_vars_for_colors() {
+    # Source a call to this function's output for one-place color vars
+    # Skips "block", doesn't use background shorthand
+
+    fg16=({31..37}m {91..97}m)
+    colors=(
+        red
+        green
+        yellow
+        blue
+        magenta
+        cyan
+        white
+        bright_red
+        bright_green
+        bright_yellow
+        bright_blue
+        bright_magenta
+        bright_cyan
+        bright_white
+    )
+    for c in "${!colors[@]}"
+    do
+        if [[ "${colors[$c]%_*}" = "bright" ]]
+        then
+            var="${colors[$((c-7))]^^}"
+        else
+            var="${colors[$c]}"
+        fi
+        var=${var:0:1}
+        printf '%s=%s\n' "$var" '\\033['"${fg16[$c]}" 
+    done
+    printf 'Q="$endfmt"\n' # Think 'Quit'
+    printf 'U="$underline"\n' 
+    printf 'E="$bold"\n' # E for 'Emphasis'
+}

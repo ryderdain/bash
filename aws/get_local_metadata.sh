@@ -2,7 +2,6 @@
 
 # If all you have is a bash shell on an ec2 host, this can get some information for you.
 
-
 get_page() {
 
     # Wrap output to guarantee an end line

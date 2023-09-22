@@ -44,7 +44,7 @@ bold='\033[1m'; export bold
 underline='\033[4m'; export underline
 
 # NOTE: 'endfmt' def purposefully left at end here for when $(cat) used on
-#       terminal to prevent mangling.
+#       terminal to prevent mangling. 
 endfmt='\033[0m'; export endfmt
 
 # See full color list and 5; settings vs 2; or nil:

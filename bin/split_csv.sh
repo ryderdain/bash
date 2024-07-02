@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-raw_file="${1:-/dev/stdin}"
-target_csv_length=7500
+raw_file="$(readlink -f "$1")" # preserve full path
+target_csv_length=7500 
 
-header="$(head -1 "$raw_file")"
-footer_lines=3
+header="$(head -1 "$raw_file")" ; [[ "${#header}" -gt 0 ]] || exit 1
+footer_lines=0
 footer="$(tail -$footer_lines "$raw_file")"
 
 # Automating the readout of the trailing lines to produce a template is not recommended. Use `%d` for the count of lines or sequence number; if there are any `%` signs in the footer change these to `%%` to preserve them below.
@@ -19,19 +19,19 @@ filename_template='TEST-REPORT-[%03d]-YYYYMMDDHHMMSS.CSV'
 splitsville="$(mktemp -d)"
 printf 'Wrote scratch directory: %s\n\n' "$splitsville"
 
-# Now preprocess the CSV file and split it
+# Preprocess the CSV file and split it...
 footerless_length="$(( $(grep -cE . "$raw_file") - $footer_lines ))"
+[[ "${#footerless_length}" -gt 1 ]] || exit 1
 (
   cd "$splitsville"
-  cat "$raw_file" \
-  | head -$footerless_length \
+  head -$footerless_length "$raw_file" \
   | tail +2 \
   | split -l $target_csv_length - raw.
 )
 
-# Now do the post-processing.
+# Now do the post-processing on the split files.
 (
-  cd "$splitsville" &&
+  cd "$splitsville"
   count=0
   for chunk in raw.*
   do
@@ -39,11 +39,11 @@ footerless_length="$(( $(grep -cE . "$raw_file") - $footer_lines ))"
     csv_seq_filename="$(printf "$filename_template" "$count")"
     ((count++))
 
-    printf '%s\n' "$header" > "$csv_seq_filename"
-    cat "$chunk" >> "$csv_seq_filename"
+    cat <<<"$(printf '%s\n' "$header")" "$chunk" > "$csv_seq_filename"
     printf "$footer_template" "$chunk_len" >> "$csv_seq_filename"
     rm $chunk
   done
 )
+
 # Resulting files and sizes ...
 du -hs "$splitsville"/*

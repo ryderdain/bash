@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+
+################################################################################
+# bash shell and display controls
+export HISTCONTROL=ignoredups
+export HISTSIZE=10000
+export HISTFILESIZE=10000
+export HISTTIMEFORMAT="%Y%m%d %H:%M:%S "
+export LANG=en_US.UTF-8
+
+## Colors and prompt
+. ~/Github/bash/includes/colors.sh
+. <(short_vars_for_colors) 
+
+# Escape code \e[**m lets use of termcap vars to set output; "38;5;X" accesses
+# 256-color decimal scheme. ~180-200 is yellowish. Export duplicates explicit
+# PS1 line like:
+#   '\[\e[1;34m\][ \[\e[0m\]$?\[\e[1;34m\] $$:$PPID - \j:\!\[\e[1;34m\]] \
+#   \[\e[0;32m\] \t \[\e[1;34m\][\[\e[38;5;23m\]\u@\h\[\e[0m\]:\[\e[0m\] \
+#   ${SSH_TTY:-o} \[\e[0;36m\]+${SHLVL} \[\e[1;37m\]\w\[\e[1;34m\]] \
+#   \[\e[0;37m\] \n\$ '
+if (( BASH_VERSINFO[0] >= 5 && BASH_VERSINFO[1] >= 2 ))
+then
+    declare -a PROMPT_COMMAND
+#   PROMPT_COMMAND[0]='aws_account_info'
+    PROMPT_COMMAND[0]='gb=$(__git_ps1 " (%s)")'
+    PROMPT_COMMAND[1]='wk=$(W=( U M T W R F S ); printf "%s/%s" "$(printf "%(%W)T")" "${W[$(printf "%(%w)T")]}")'
+    PROMPT_COMMAND[2]='export PS1="$E$b[ $Q\$?$E$b $PPID/\! ]$Q $y$wk $g\t $E$b[\[\e[38;5;23m\]\u@\h$Q:$c+${SHLVL} $Q$E\w$Q$g${gb}$b]$Q \n\$ "'
+#   PROMPT_COMMAND[1]='export PS1="$E$b[ $Q\$?$E$b $$:$PPID - \j:\!]$Q $g \t $E$b[\[\e[38;5;23m\]\u@\h $Q:${SSH_TTY:-o} $c+${SHLVL} $Q$E\w$Q$g${gb}$b]$Q \n\$ "'
+else
+#   PROMPT_COMMAND='aws_account_info; gb=$(__git_ps1 " (%s)"); export PS1="$E$b[ $Q\$?$E$b $$:$PPID - \j:\!]$Q $g \t $E$b[\[\e[38;5;23m\]\u@\h $Q:${SSH_TTY:-o} $c+${SHLVL} $Q$E\w$Q$g${gb}$b]$Q \n\$ "'
+    PROMPT_COMMAND='gb=$(__git_ps1 " (%s)"); export PS1="$E$b[ $Q\$?$E$b $$:$PPID - \j:\!]$Q $g \t $E$b[\[\e[38;5;23m\]\u@\h $Q:${SSH_TTY:-o} $c+${SHLVL} $Q$E\w$Q$g${gb}$b]$Q \n\$ "'
+fi
+export CLICOLOR=1
+#export LSCOLORS=exfxcxdxbxegedabagacad      ## Default for MacOSX
+export LSCOLORS=ExfxcxdxbxGxDxhbBxheCx     ## Custom for MacOSX to match FreeBSD
+#. ~/.LSCOLORS
+
+################################################################################
+# Command Completions
+
+## For use with pyenv (recommended for python under Homebrew)
+## - See: https://opensource.com/article/19/5/python-3-default-mac)
+#if command -v pyenv 1>/dev/null 2>&1
+#then
+#    eval "$(pyenv init -)"
+#fi
+
+. /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash
+. /Library/Developer/CommandLineTools/usr/share/git-core/git-prompt.sh
+export GIT_PS1_SHOWDIRTYSTATE=1
+
+#. <(kubectl completion bash)
+#alias kc=kubectl
+#complete -F __start_kubectl kc
+
+################################################################################
+# PATH settings and command aliasing
+
+# Adding PATH vars for Homebrew
+export MANPATH="${MANPATH}:/usr/share/man:/opt/homebrew/man:/opt/homebrew/share/man:/usr/homebrew/man"
+export PATH="/opt/homebrew/opt/make/libexec/gnubin:/opt/homebrew/bin:/opt/homebrew/sbin:/opt/homebrew/opt/python@3.12/libexec/bin:$PATH"
+
+# Additional PATH expansions
+export PATH="$HOME/.local/bin:$HOME/Local/bin:$PATH"
+
+# Include some known personal tools
+export PATH="$PATH:$HOME/Documents/bin"
+
+# ls
+alias ls='ls -G'
+alias ll='ls -lh'
+alias la='ls -A'
+alias l='ls -CF'
+alias less='less -R -c'
+
+# For colored man pages, replace man with this invocation function.
+. ~/Github/bash/bashrc.includes/wrapper-man.sh
+
+# Run the ASDF version manager (See: https://asdf-vm.com/#/core-manage-asdf-vm)
+#. /opt/homebrew/opt/asdf/libexec/asdf.sh
+
+################################################################################
+# Custom SSH setup / unlock keys on startup
+
+local_ssh_keys=(
+    ~/.ssh/huginn
+)
+if ! (ssh-add -l >/dev/null)
+then
+    ssh-add --apple-use-keychain "${local_ssh_keys[@]}"
+fi
+bash_workspace="$HOME/Local/github/bash"
+
+
+################################################################################
+## WIDGETS
+
+checkssl() {
+    ~/Local/bash/checkssl/checkssl.sh "$@"
+}
+
+zn() {
+    inbox="$(printf '%s/Documents/zettelkiste/Inbox' "$(find ~/Library/Mobile\ Documents -type d -name '*pro~writer')")"
+    if [[ $# -gt 0 ]]
+    then
+        (cd "$inbox" && "$@") || exit 1
+    else
+        ts="$(printf '%(%Y%m%d%H%M)T')"
+        (cd "$inbox" && printf "$ts\n" >> "${ts}.md") || exit 1
+        vim "${inbox}/${ts}.md"
+    fi
+}
+
+hex() {
+    printf 'Hex: %s\nDec: %d\n' "$1" "0x$1"
+}
+dec() {
+    printf 'Dec: %s\nHex: %x\n' "$1" "$1"
+}
+
+usd() {
+    curl -s 'http://data.fixer.io/api/latest?access_key='"$FXTOKEN" \
+    | jq -r '.rates["USD"]'
+}
+
+calc() {
+    bc -l <<<"$*"
+}
+
+profiles() {
+    grep '\[profile' ~/.aws/config | grep -v '^;' | sed -e 's/\[profile \(.*\)\]/\1/'
+}
+
+prune() {
+    git fetch --prune origin
+    git branch -r | awk '{print $1}' | egrep -v -f /dev/fd/0 <(git branch -vv | grep origin) | awk '{print $1}' | xargs git branch -d
+}
+
+brew_switch() {
+    if ! [[ "$#" -eq 2 ]] 
+    then
+        printf '[%(%F %T)T] ERROR: must supply two names with different versions.\n' >&2
+    fi
+    brew unlink "${1}" && brew link "${2}"
+}
+
+hq() {
+    module_path="$1"
+    json_query="$2"
+    hcl2json <(
+        for tf in $module_path/*.tf
+        do  
+            printf '%s\n' "$(<$tf)"
+        done
+    ) | jq -r "$json_query" 2>/dev/null
+    return $?
+}
+
+error() {
+    ret_code=${1}; shift
+    printf '[%(%F %T)T] '
+    printf 'ERROR: %s' "${@}"
+    exit "${ret_code}"
+}
+
+fx() {
+    if [[ -n "${1}" ]] && [[ "${1}" != "EUR" ]] ; then error 2 "only EUR is currently supported by your current plan." ; fi
+    $HOME/Local/github/bash/bin/forex.sh $FXTOKEN ${1:-EUR} ${2:-USD}
+}
+
+in_usd() {
+    printf '%.2f\n' "$(bc -l <<<"${1:-"1.0"} * $(fx 2>/dev/null)")"
+}
+
+in_eur() {
+    printf '%.2f\n' "$(bc -l <<<"${1:-"1.0"} / $(fx 2>/dev/null)")"
+}
+
+vol() {
+    sudo osascript -e "set volume $1"    
+}
+
+## assume-role: https://github.com/coinbase/assume-role/blob/master/README.md
+## Required for modifying PS1 to display current AWS_PROFILE value
+#function aws_account_info {
+#    . <(short_vars_for_colors) 
+#
+#    if [[ "$AWS_ACCOUNT_NAME" ]]
+#    then
+#        if [[ "$AWS_ACCOUNT_ROLE" ]]; then
+#            case "$AWS_ACCOUNT_ROLE" in
+#            'admin')
+#                echo -n "aws:(${y}$AWS_ACCOUNT_NAME${E}:${g}$AWS_ACCOUNT_ROLE${E}) ";;
+#            *)
+#                echo -n "aws:(${y}$AWS_ACCOUNT_NAME${E}:$AWS_ACCOUNT_ROLE) ";;
+#            esac
+#        elif [[ "$AWS_USERNAME" ]]; then
+#            echo -n "aws:(${y}$AWS_ACCOUNT_NAME${E}:${b}$AWS_USERNAME${E}) "
+#        fi
+#    elif [[ "$AWS_PROFILE" ]]
+#    then
+#        echo -n "aws:(${c}${AWS_PROFILE}${E}) "
+#    fi
+#    echo -ne "\033]0;${USER}@${HOSTNAME}: ${PWD} (${TERM})\007"
+#}
+
+################################################################################
+# Infamous Fortune Cookies on startup
+if [ -x /opt/homebrew/bin/fortune ] ; then fortune -as ; fi
+
+
+################################################################################
+# PROJECT-SPECIFIC ROUTINES
+
+export JIRA_AUTH_TYPE='bearer'
+export GH_HOST=example.com # for use with gh cli tool
+mbd() {
+  for d in $(find $HOME/Local/github -type d -name '.git' -exec dirname {} \;) 
+  do
+    case ${1:-fetch} in 
+    fetch)
+      printf '### GIT-FETCHING %s ###\n' "$(basename "$d")"
+      (cd "$d"; git fetch);;
+    pull)
+      printf '### GIT-PULLING %s ###\n' "$(basename "$d")"
+      (cd "$d"; git pull);;
+    update)
+      printf '### UPDATING GIT %s ###\n' "$(basename "$d")"
+      (
+        cd "$d"
+        current="$(git branch --show-current)"
+        git checkout master 2>/dev/null || git checkout main
+        git pull
+        git checkout "$current" ; git pull
+      );;
+    *)
+    ;;
+    esac
+  done
+}

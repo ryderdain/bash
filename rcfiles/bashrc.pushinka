@@ -137,3 +137,11 @@ alias checkssl="~/github/ryderdain/bash/checkssl/checkssl.sh"
 # VcXsrv for i3 
 export DISPLAY="$(route -n4 | grep -E '^0.0.0.0' | awk '{print $2;}'):0.0"
 export LIBGL_ALWAYS_INDIRECT=1
+
+# Suport for `aws sso login` via wsl2
+if [[ -x "$(which wslview)" ]]
+then
+    export BROWSER=wslview
+else
+    export BROWSER=/mnt/c/Users/RyderDain/AppData/Local/Vivaldi/Application/vivaldi.exe
+fi

@@ -133,6 +133,7 @@ export PATH="/usr/lib/go-1.22/bin:${PATH}"
 
 # Local widgets
 alias checkssl="~/github/ryderdain/bash/checkssl/checkssl.sh"
+alias mdr='retext --prevew' # read markdown files
 
 # VcXsrv for i3 
 export DISPLAY="$(route -n4 | grep -E '^0.0.0.0' | awk '{print $2;}'):0.0"

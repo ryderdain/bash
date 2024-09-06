@@ -133,16 +133,24 @@ export PATH="/usr/lib/go-1.22/bin:${PATH}"
 
 # Local widgets
 alias checkssl="~/github/ryderdain/bash/checkssl/checkssl.sh"
-alias mdr='retext --prevew' # read markdown files
+alias mdr='DISPLAY=:0 retext --preview' # read markdown files
 
-# VcXsrv for i3 
-export DISPLAY="$(route -n4 | grep -E '^0.0.0.0' | awk '{print $2;}'):0.0"
+# VcXsrv for i3 // interferes with wslview
+#export DISPLAY="$(route -n4 | grep -E '^0.0.0.0' | awk '{print $2;}'):0.0"
 export LIBGL_ALWAYS_INDIRECT=1
 
 # Suport for `aws sso login` via wsl2
+export AWS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+export AWS_DEFAULT_REGION=eu-north-1
 if [[ -x "$(which wslview)" ]]
 then
     export BROWSER=wslview
 else
     export BROWSER=/mnt/c/Users/RyderDain/AppData/Local/Vivaldi/Application/vivaldi.exe
 fi
+complete -C aws_completer aws
+
+# Support NPM fetch for running yarn
+ export NVM_DIR="$HOME/.nvm"
+ [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+ [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

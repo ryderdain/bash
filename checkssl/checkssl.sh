@@ -53,6 +53,11 @@ error() {
     exit "${ret_code}"
 }
 getip() {
+    #TODO: hangs when an inappropriate fqdn is supplied, e.g., "Zscaler Root CA" instead of a domain
+    if ! (printf '%s\n' "${1}" | grep -q -E '[a-zA-Z0-9-]+\.[a-zA-Z]{2,5}')
+    then
+        return 1
+    fi
     host -t A -4 "${1}" | grep -m1 -oE '([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'
     return $?
 } 
@@ -170,7 +175,7 @@ main() {
         then
             printf '%s\n' "\"${cyan}${bold}${fqdn}${endfmt}\" ${green}LIVES AT ${cyan}${fqdn_ip}${endfmt}" 
         else
-            printf '%s\n' "${red}NO IP FOR CN \"${cyan}${bold}${fqdn}${endfmt}\"" 
+            printf '%s\n' "${red}NO IP FOR CN${endfmt} \"${cyan}${bold}${fqdn}${endfmt}\"" 
         fi
 
     ## Second Option: Check by fqdn

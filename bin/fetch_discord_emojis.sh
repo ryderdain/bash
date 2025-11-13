@@ -61,6 +61,37 @@ fetch_discord_emojis_rx() {
     done
 }
 
+# version three
+get_new_filename() {
+    local file="$1";
+    local base ext newfile n;
+    ext=""
+    [[ "$file" == *.* ]] && { ext=".${file##*.}";
+    base="${file%.*}"; } || { base="$file"; };
+    newfile="$file";
+    n=1; 
+    while [[ -e "$newfile" ]];
+    do
+        newfile="${base}_$n$ext";
+        ((n++));
+    done; 
+    echo "$newfile";
+}
+
+while read -r emt
+do
+    x=($(tr '>:<' ' ' <<<"$emt"))
+    if [[ ${#x[@]} -gt 2 ]]
+    then
+        ext="gif" id="${x[2]}"
+        fn="$(get_new_filename "${x[1]}.${ext}")"
+    else
+        ext="png" id="${x[1]}"
+        fn="$(get_new_filename "${x[0]}.${ext}")"
+    fi
+    curl -s -o "${fn}.${ext}" "https://cdn.discordapp.com/emojis/${id}.${ext}"
+done
+
 # test to compare
 func_test() {
     tempfd_emojis_dir="$(mktemp -d "/tmp/emojis.XXXX")"

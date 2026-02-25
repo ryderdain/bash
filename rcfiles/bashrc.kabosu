@@ -3,10 +3,14 @@
 ################################################################################
 # bash shell and display controls
 export HISTCONTROL=ignoredups
-export HISTSIZE=60000
-export HISTFILESIZE=60000
+export HISTSIZE=65536
+export HISTFILESIZE=65536
 export HISTTIMEFORMAT="%Y%m%d %H:%M:%S "
 export LANG=en_US.UTF-8
+
+# after years, giving in. too useful an option.
+shopt -s globstar histappend cdspell
+# consider for scripts: nullglob, nocaseglob, nocasematch
 
 ## Colors and prompt
 . ~/Local/github.com/ryderdain/bash/includes/colors.sh
@@ -68,6 +72,17 @@ export LSCOLORS=ExfxcxdxbxGxDxhbBxheCx     ## Custom for MacOSX to match FreeBSD
 ################################################################################
 # Command Completions
 
+# for Makefiles / adapted from https://stackoverflow.com/questions/4188324/bash-completion-of-makefile-target
+__make_completions() {
+    local curr_arg;
+    curr_arg=${COMP_WORDS[COMP_CWORD]}
+    COMPREPLY=( $(compgen -W "`(([[ -r Makefile ]] || [[ -r makefile ]]) && grep -oE '^[a-zA-Z0-9_-]+:([^=]|$)' ?akefile || cat /dev/null) | sed 's/[^a-zA-Z0-9_-]*$//'`" -- $curr_arg ) );
+}
+complete -F __make_completions make
+
+# for golang (pkg.go.dev/github.com/posener/complete)
+complete -C /Users/ryder.dain/go/bin/gocomplete go
+
 ## For use with pyenv (recommended for python under Homebrew)
 ## - See: https://opensource.com/article/19/5/python-3-default-mac)
 #if command -v pyenv 1>/dev/null 2>&1
@@ -80,9 +95,25 @@ export LSCOLORS=ExfxcxdxbxGxDxhbBxheCx     ## Custom for MacOSX to match FreeBSD
 export GIT_PS1_SHOWDIRTYSTATE=1
 
 . <(kubectl completion bash)
-alias kc=kubectl
-complete -F __start_kubectl kc
-alias kx=kubectl-ctx
+alias k=kubectl
+complete -F __start_kubectl k
+
+# Copied from $(brew --prefix)/opt/kubectx/etc/bash_completion.d/kube*
+_kube_contexts()
+{
+  local curr_arg;
+  curr_arg=${COMP_WORDS[COMP_CWORD]}
+  COMPREPLY=( $(compgen -W "- $(kubectl config get-contexts --output='name')" -- $curr_arg ) );
+}
+alias kcx=kubectx
+complete -F _kube_contexts kubectx kctx kcx
+_kube_namespaces()
+{
+  local curr_arg;
+  curr_arg=${COMP_WORDS[COMP_CWORD]}
+  COMPREPLY=( $(compgen -W "- $(kubectl get namespaces -o=jsonpath='{range .items[*].metadata.name}{@}{"\n"}{end}')" -- $curr_arg ) );
+}
+complete -F _kube_namespaces kubens kns
 
 [[ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ]] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"
 
@@ -103,6 +134,9 @@ export PATH="$PATH:$HOME/Documents/bin"
 # Support for Go
 export GOPATH="$HOME/go"
 export PATH="$PATH:$GOPATH/bin"
+
+# Support for Obsidian CLI
+export PATH="$PATH:/Applications/Obsidian.app/Contents/MacOS"
 
 # ls
 alias ls='ls -G'

@@ -8,12 +8,15 @@ export HISTFILESIZE=65536
 export HISTTIMEFORMAT="%Y%m%d %H:%M:%S "
 export LANG=en_US.UTF-8
 
+# for general portability
+export _BASHINCLUSIONS="${HOME}/Local/github.com/ryderdain/bash/includes"
+
 # after years, giving in. too useful an option.
 shopt -s globstar histappend cdspell
 # consider for scripts: nullglob, nocaseglob, nocasematch
 
 ## Colors and prompt
-. ~/Local/github.com/ryderdain/bash/includes/colors.sh
+. "${_BASHINCLUSIONS}/colors.sh"
 . <(short_vars_for_colors) 
 
 # Escape code \e[**m lets use of termcap vars to set output; "38;5;X" accesses
@@ -146,7 +149,7 @@ alias l='ls -CF'
 alias less='less -R -c'
 
 # For colored man pages, replace man with this invocation function.
-. ~/Local/github.com/ryderdain/bash/bashrc.includes/wrapper-man.sh
+. "${_BASHINCLUSIONS}/wrapper-man.sh"
 
 # Run the ASDF version manager (See: https://asdf-vm.com/#/core-manage-asdf-vm)
 #. /opt/homebrew/opt/asdf/libexec/asdf.sh
@@ -168,7 +171,7 @@ bash_workspace="$HOME/Local/github.com/ryderdain/bash"
 ## WIDGETS
 
 checkssl() {
-    ~/Local/bash/checkssl/checkssl.sh "$@"
+    ~/Local/github.com/ryderdain/bash/checkssl/checkssl.sh "$@"
 }
 
 zn() {
@@ -311,3 +314,19 @@ mbd() {
   done
 }
 
+# Use gsw config CLOUDSDK_ACTIVE_CONFIG_NAME as a reference for ease
+krgn() {
+    source "${_BASHINCLUSIONS}/inidb.sh"
+    ini_loadfile "${HOME}/.config/gcloud/configurations/config_${CLOUDSDK_ACTIVE_CONFIG_NAME}"
+    ctx="$(ini_get_value core project)"
+
+    printf "# STACK: %s\n" "$ctx"
+    for region in europe-west3 us-west2 us-east4 asia-northeast1
+    do
+        printf "### RUN 'kubectl %s' ON REGION: %s\n%s\n" "${*}" "$region" "$(kubectl --context gke_${ctx}_${region}_${region}-c1 "${@}")"
+    #   kubectl --context gke_${ctx}_${region}_${region}-c1 get pods -n oasis -l app.kubernetes.io/name=typesensev2
+    #   kubectl --context gke_${ctx}_${region}_${region}-c1 get pdb -n oasis typesensev2-ha
+    #   kubectl --context gke_${ctx}_${region}_${region}-c1 get configmap -n oasis typesensev2-ha-cluster -o yaml
+    #   kubectl --context gke_${ctx}_${region}_${region}-c1 logs typesensev2-ha-0 -n oasis --tail=20
+    done
+}

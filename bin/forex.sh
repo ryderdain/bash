@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-. $HOME/Local/github/bash/includes/cache_last_exec.sh
+. $HOME/Local/github.com/ryderdain/bash/includes/cache_last_exec.sh
 
 # Sign up and get a key from http://fixer.io
 FOREX_KEY="${1:-none}" ; shift

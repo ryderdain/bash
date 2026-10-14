@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
 set -eu
-. set-e_test_funcs.sh
+. set-e-test-funcs.sh
 
 testfunc

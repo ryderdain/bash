@@ -5,5 +5,3 @@ Scripts and stuff for making AWS easier. Mostly bash scripts, some JQ filters, m
 ## SelfManagedLoginCredentials.json
 
 IAM User policy for use with assume-role (via Coinbase)
-
-

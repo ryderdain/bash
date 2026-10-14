@@ -168,7 +168,7 @@ load_env_definition() {
 }
 
 # env_definition_record — print the resolved values as comment lines, for the top of a
-# run-log (§1.11), so a one-off override is always on record.
+# run sheet (§1.11), so a one-off override is always on record.
 env_definition_record() {
   local name
   for name in "${ENV_DEFINITION_NAMES[@]}"; do

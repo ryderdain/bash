@@ -108,7 +108,7 @@ log() { while IFS= read -r line; do printf '%s | %s\n' "$1" "$line"; done; }
 
 `log` is bespoke: define it at the top of the stream, once, only when the stream uses it. Note what the pipe does: a group on the left of a pipe runs in a subshell, so a variable it sets or a directory it enters does not reach the next group ([`tests/emit-group-cases.sh`](../tests/emit-group-cases.sh), case 2). For an anonymous function that is the correct behaviour anyway. A group takes its inputs from the emitted text and leaves its results in files; it does not hand state to its neighbour through the shell.
 
-The same subshell has a sharper consequence: an `exit` inside a piped group ends only the pipe, not the stream. So **a group that carries an `error` check (below) is never piped**. Leave it bare, and let its output go straight to the run-log's output. (Case 7 of `emit-group-cases.sh` shows the stream carrying on past a piped check.)
+The same subshell has a sharper consequence: an `exit` inside a piped group ends only the pipe, not the stream. So **a group that carries an `error` check (below) is never piped**. Leave it bare, and let its output go straight to the run sheet's output. (Case 7 of `emit-group-cases.sh` shows the stream carrying on past a piped check.)
 
 ### What grouping gives up, and why that is the correct trade
 
@@ -251,7 +251,7 @@ And here is the honest boundary. Ansible — or any structured runner — earns 
 
 _Reserved._ The seed document's §1.10 (no masked failures; a phase's claim must match its body) has not been ported yet. The number is kept so that cross-references from other projects still resolve.
 
-## §1.11 — The driver: run-logs, phases you can run again, and no prompts
+## §1.11 — The driver: run sheets, phases you can run again, and no prompts
 
 §1.4 gave the driver its calling surface: it sources action scripts and sequences their functions. This section gives it its execution model. A driver does not do the work, and it never prompts. **It is an emit script itself**: its output is a procedure made of one group per **phase**. A phase's own commands depend on what earlier phases produced, so the driver cannot print them all up front; instead each phase group makes them at the moment it runs, and records them:
 
@@ -265,7 +265,7 @@ _Reserved._ The seed document's §1.10 (no masked failures; a phase's claim must
 
 Each phase group does three things, in order:
 
-1. **Record.** Run the phase's emit function and write its stream to a run-log file, `var/run/<env>/<YYYYmmddHHMM>/<NN>-<phase>.sh`, before anything runs. The top of the file records the resolved inputs (§1.12).
+1. **Record.** Run the phase's emit function and write its stream to a run sheet file, `var/run/<env>/<YYYYmmddHHMM>/<NN>-<phase>.sh`, before anything runs. The top of the file records the resolved inputs (§1.12).
 2. **Run.** Run the file, not a pipe, and write its exit status beside it as `<NN>-<phase>.rc`.
 3. **Check.** Run the phase's check: a read-only generator (§1.2) that asks the system whether the phase's result is there — the repository exists, the pods are ready, the secret reads back. If it passes, it writes `<NN>-<phase>.ok`.
 
@@ -274,21 +274,21 @@ Each phase group does three things, in order:
 - **Careful:** `bash driver.sh <env> next` emits only the next phase without an `.ok`. Read it; to see the phase's actual commands, run its emitter on its own (`bash driver/phases/10-substrate.sh local`). Then pipe the phase to `bash`, and repeat.
 - **Fast:** `bash driver.sh <env> up | bash` runs every remaining phase in one go.
 
-The run-log is the exact record of what ran. The run-log directory is gitignored, and safe to keep, because the stream holds secrets only as references (§1.3).
+The run sheet is the exact record of what ran. The run directory is gitignored, and safe to keep, because the stream holds secrets only as references (§1.3).
 
-**Run-logs take stdin from `/dev/null`.** The driver's procedure arrives on stdin (`driver.sh <env> up | bash`). A command inside a run-log that reads stdin without a pipe or a heredoc of its own — `docker exec -i`, `kubectl exec -i`, `cat`, `ssh` — inherits that stdin and swallows the rest of the procedure. The stream then ends silently: the later phases never run, and nothing reports it. So the driver runs each run-log, each check and each remote-execution helper with `< /dev/null`. Data reaches a command only through a pipe or a heredoc, and a generator never passes `-i` to `docker exec` or `kubectl exec` without one. The instrument is a test whose fake phases read stdin: a driver that forgets the redirect fails it ([`barzel-cluster`](https://github.com/ryderdain/barzel-cluster), `driver/tests/driver-cases.sh`).
+**Run sheets take stdin from `/dev/null`.** The driver's procedure arrives on stdin (`driver.sh <env> up | bash`). A command inside a run sheet that reads stdin without a pipe or a heredoc of its own — `docker exec -i`, `kubectl exec -i`, `cat`, `ssh` — inherits that stdin and swallows the rest of the procedure. The stream then ends silently: the later phases never run, and nothing reports it. So the driver runs each run sheet, each check and each remote-execution helper with `< /dev/null`. Data reaches a command only through a pipe or a heredoc, and a generator never passes `-i` to `docker exec` or `kubectl exec` without one. The instrument is a test whose fake phases read stdin: a driver that forgets the redirect fails it ([`barzel-cluster`](https://github.com/ryderdain/barzel-cluster), `driver/tests/driver-cases.sh`).
 
 **Outputs pass between phases as files.** A phase that produces a value a later phase needs (a digest, an address, a kubeconfig) writes it into the run directory. The later phase reads the file. Nothing passes through shell memory or a paste-back step (§1.5, §1.7).
 
-**The exit code is not the verdict.** A run-log's exit status is its last command's (§1.2), and command-line tools do not report failure consistently. So the `.rc` file records only two facts: the run-log ran to its end, or an `error` check stopped it on purpose. Exit code **3** is reserved for that deliberate stop: a `.rc` of 3 means "read the `ERROR:` line; do not simply run it again". Whether the phase did its job is the check's answer, not the exit code's. The check's result is written beside the run-log as `<NN>-<phase>.ok`.
+**The exit code is not the verdict.** A run sheet's exit status is its last command's (§1.2), and command-line tools do not report failure consistently. So the `.rc` file records only two facts: the run sheet ran to its end, or an `error` check stopped it on purpose. Exit code **3** is reserved for that deliberate stop: a `.rc` of 3 means "read the `ERROR:` line; do not simply run it again". Whether the phase did its job is the check's answer, not the exit code's. The check's result is written beside the run sheet as `<NN>-<phase>.ok`.
 
-**Resume is a property of the run directory.** The driver starts at the first phase with no `.ok` file. It emits that phase again before it runs it, because the inputs may have changed. No trap or state machine is needed. A phase whose check keeps failing stops the driver and goes to the operator with its run-log; running it again by reflex is useless.
+**Resume is a property of the run directory.** The driver starts at the first phase with no `.ok` file. It emits that phase again before it runs it, because the inputs may have changed. No trap or state machine is needed. A phase whose check keeps failing stops the driver and goes to the operator with its run sheet; running it again by reflex is useless.
 
 **Every phase must be safe to run again.** This is the rule that makes resume work, and it is not optional. A phase can stop at any line: a failed step, a lost connection, a killed pod. When it runs again from the top, the steps that already succeeded must succeed again with no change. So use the converging forms: `kubectl apply`, `helm upgrade --install`, `tofu apply` from a saved plan. A create that fails because its object already exists is not a problem; let it fail visibly in the log. A block that is not safe to run again gets an `error 3` check on the dangerous step (§1.2), in the emitted text where the reader can see it. A missing `.ok` then always means the same thing: the phase may run again.
 
 **The approval rule is a rule about which way you drive.** A phase whose effect leaves the driver's own machine, or that costs money — a push to a registry, a `git push` or a commit, a change to a cloud account — is driven the careful way, one reviewed phase at a time. The fast way is only for phases whose effects stay local: a local cluster, a local image rebuild, a rendered file. Approving one phase never approves the next.
 
-**Remote execution keeps the same shape.** When the driver sends a phase to another host, it copies the run-log there, verifies the copy, and runs it detached. The remote side writes the `.rc` file when the run-log ends. The driver follows the output and polls for the `.rc`; a dropped connection does not kill the phase, and the driver can attach again. The driver collects the remote `.rc` into its own run directory, runs the check, and writes the `.ok`. Its copies are the record.
+**Remote execution keeps the same shape.** When the driver sends a phase to another host, it copies the run sheet there, verifies the copy, and runs it detached. The remote side writes the `.rc` file when the run sheet ends. The driver follows the output and polls for the `.rc`; a dropped connection does not kill the phase, and the driver can attach again. The driver collects the remote `.rc` into its own run directory, runs the check, and writes the `.ok`. Its copies are the record.
 
 ## §1.12 — Environment definitions: one file of plain values
 
@@ -303,8 +303,8 @@ BRZL_K3D_AGENTS=0
 
 Three rules make it work:
 
-- **The file holds defaults, and an exported value wins.** An operator can try a one-off value without an edit: `BRZL_K3D_AGENTS=2 bash driver.sh local up | bash`. The override is announced on stderr, and the driver records the resolved values at the top of each run-log, so it is always on record.
+- **The file holds defaults, and an exported value wins.** An operator can try a one-off value without an edit: `BRZL_K3D_AGENTS=2 bash driver.sh local up | bash`. The override is announced on stderr, and the driver records the resolved values at the top of each run sheet, so it is always on record.
 - **Never turn these values into flags.** A flag for each value grows without limit, and it splits one question ("what is this environment?") across every call site. The file is the single answer.
 - **No secrets.** An environment definition is committed and reviewed. Secrets arrive as environment variables from their own source and stay references in emitted text (§1.3).
 
-`load_env_definition` in [`includes/runlib.sh`](../includes/runlib.sh) implements the precedence and the announcement, and `env_definition_record` prints the resolved values for a run-log. Both are demonstrated in [`tests/env-definition-cases.sh`](../tests/env-definition-cases.sh).
+`load_env_definition` in [`includes/runlib.sh`](../includes/runlib.sh) implements the precedence and the announcement, and `env_definition_record` prints the resolved values for a run sheet. Both are demonstrated in [`tests/env-definition-cases.sh`](../tests/env-definition-cases.sh).

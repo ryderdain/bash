@@ -10,7 +10,6 @@
 # Bash, not POSIX sh: printf '%(…)T' is a bash builtin feature.
 error() {
     ret_code=${1}; shift
-    exec >&2
-    TZ=UTC printf '[%(%Y-%m-%dT%H:%M:%SZ)T] ' -1; printf 'ERROR: %s\n' "$*"
+    TZ=UTC printf '[%(%Y-%m-%dT%H:%M:%SZ)T] ' -1; printf 'ERROR: %s\n' "$*" >&2
     exit "${ret_code}"
 }

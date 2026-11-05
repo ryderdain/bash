@@ -93,6 +93,8 @@ Two consequences follow. First, group by meaning, not by mechanics: one group pe
 
 Every emitted group should still read as straightforward procedure. The output of an emitter must work two ways with no change: redirected into a file and run later, or piped directly into `bash`.
 
+**One command per line, for the reader.** A group already gives the reader the block, so a newline between two commands costs nothing and reads better. In an emitted group, each command goes on its own line, inside a subshell or a case arm too. Three things stay on one line: a condition and the one command it guards (`[[ -r f ]] && . f`, `cmd || error 3 '…'`); two short commands that make one step (`ret_code=${1}; shift`); and a short pipe. A long pipe breaks before each `|`: the line ends with `\`, and the next line starts with the pipe and its segment, indented. The shell's own forms keep their semicolon: `if …; then`, `for …; do`, and the closing `; }` of a one-line group. The test is readability, not the count of semicolons.
+
 ### Collecting a group's output
 
 A group has one more property that matters in practice: one redirection after the closing brace collects the output of every command in it. So a stream can label everything a block printed without a pipe on each command:
